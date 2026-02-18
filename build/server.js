@@ -1,6 +1,8 @@
 import { createServer } from "http";
 import { createAbsenceEvent, listAbsenceEvents } from "./db.js";
-const port = Number(process.env.PORT ?? 3000);
+import { createAppInfo, getAppConfig } from "./app.js";
+const { port } = getAppConfig();
+const appInfo = createAppInfo();
 const allowedReasons = new Set(["sick", "vacation", "other"]);
 function sendJson(res, statusCode, body) {
     res.writeHead(statusCode, { "content-type": "application/json" });
@@ -192,5 +194,5 @@ const server = createServer((req, res) => {
     sendJson(res, 404, { error: { code: "NOT_FOUND", message: "Not Found" } });
 });
 server.listen(port, () => {
-    console.log(`Server listening on port ${port}`);
+    console.log(`${appInfo.name} listening on port ${appInfo.port}`);
 });
