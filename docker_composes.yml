@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: absence-service
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      DATABASE_URL: postgres://postgres:postgres@db:5432/absence_service
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    container_name: absence-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: absence_service
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d absence_service"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:
