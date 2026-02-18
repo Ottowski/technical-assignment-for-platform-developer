@@ -18,7 +18,7 @@ function getPool() {
     });
     return pool;
 }
-function buildDedupHash(input) {
+function buildNaturalDedupHash(input) {
     const normalizedNote = input.note ?? "";
     const normalizedReportedBy = input.reportedBy ?? "";
     return createHash("sha256")
@@ -45,7 +45,7 @@ export async function checkDbConnection() {
 }
 export async function createAbsenceEvent(input) {
     const currentPool = getPool();
-    const dedupHash = buildDedupHash(input);
+    const naturalDedupHash = buildNaturalDedupHash(input);
     if (input.idempotencyKey && input.idempotencyKey.trim().length > 0) {
         const insertWithIdempotency = await currentPool.query(`
       INSERT INTO absence_events (
@@ -55,11 +55,11 @@ export async function createAbsenceEvent(input) {
         reason,
         note,
         reported_by,
-        idempotency_key,
-        dedup_hash
+        idempotency_key
       )
-      VALUES ($1, $2::timestamptz, $3::timestamptz, $4, $5, $6, $7, $8)
-      ON CONFLICT ON CONSTRAINT uq_absence_events_student_idempotency_key
+      VALUES ($1, $2::timestamptz, $3::timestamptz, $4, $5, $6, $7)
+      ON CONFLICT (student_id, idempotency_key)
+      WHERE idempotency_key IS NOT NULL
       DO NOTHING
       RETURNING
         id,
@@ -80,7 +80,6 @@ export async function createAbsenceEvent(input) {
             input.note ?? null,
             input.reportedBy ?? null,
             input.idempotencyKey,
-            dedupHash,
         ]);
         if (insertWithIdempotency.rows.length > 0) {
             return mapRow(insertWithIdempotency.rows[0]);
@@ -106,8 +105,9 @@ export async function createAbsenceEvent(input) {
         }
         return mapRow(existing.rows[0]);
     }
-    const insertWithDedup = await currentPool.query(`
-    INSERT INTO absence_events (
+    const existingByNaturalFields = await currentPool.query(`
+    SELECT
+      id,
       student_id,
       from_at,
       to_at,
@@ -115,11 +115,38 @@ export async function createAbsenceEvent(input) {
       note,
       reported_by,
       idempotency_key,
-      dedup_hash
+      created_at,
+      updated_at
+    FROM absence_events
+    WHERE student_id = $1
+      AND from_at = $2::timestamptz
+      AND to_at = $3::timestamptz
+      AND reason = $4
+      AND COALESCE(note, '') = COALESCE($5, '')
+      AND COALESCE(reported_by, '') = COALESCE($6, '')
+    LIMIT 1
+    `, [
+        input.studentId,
+        input.from,
+        input.to,
+        input.reason,
+        input.note ?? null,
+        input.reportedBy ?? null,
+    ]);
+    if (existingByNaturalFields.rows.length > 0) {
+        return mapRow(existingByNaturalFields.rows[0]);
+    }
+    const insertWithoutKey = await currentPool.query(`
+    INSERT INTO absence_events (
+      student_id,
+      from_at,
+      to_at,
+      reason,
+      note,
+      reported_by,
+      idempotency_key
     )
-    VALUES ($1, $2::timestamptz, $3::timestamptz, $4, $5, $6, NULL, $7)
-    ON CONFLICT ON CONSTRAINT uq_absence_events_student_dedup_hash
-    DO NOTHING
+    VALUES ($1, $2::timestamptz, $3::timestamptz, $4, $5, $6, NULL)
     RETURNING
       id,
       student_id,
@@ -138,31 +165,11 @@ export async function createAbsenceEvent(input) {
         input.reason,
         input.note ?? null,
         input.reportedBy ?? null,
-        dedupHash,
     ]);
-    if (insertWithDedup.rows.length > 0) {
-        return mapRow(insertWithDedup.rows[0]);
+    if (insertWithoutKey.rows.length === 0) {
+        throw new Error(`Failed to create absence event for natural hash ${naturalDedupHash}.`);
     }
-    const existingByDedup = await currentPool.query(`
-    SELECT
-      id,
-      student_id,
-      from_at,
-      to_at,
-      reason,
-      note,
-      reported_by,
-      idempotency_key,
-      created_at,
-      updated_at
-    FROM absence_events
-    WHERE student_id = $1 AND dedup_hash = $2
-    LIMIT 1
-    `, [input.studentId, dedupHash]);
-    if (existingByDedup.rows.length === 0) {
-        throw new Error("Deduplication conflict occurred but existing row could not be loaded.");
-    }
-    return mapRow(existingByDedup.rows[0]);
+    return mapRow(insertWithoutKey.rows[0]);
 }
 export async function listAbsenceEvents(input) {
     const result = await getPool().query(`

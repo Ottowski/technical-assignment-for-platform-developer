@@ -1,4 +1,5 @@
 import { createServer } from "http";
+import { createAbsenceEvent, listAbsenceEvents } from "./db.js";
 const port = Number(process.env.PORT ?? 3000);
 const allowedReasons = new Set(["sick", "vacation", "other"]);
 function sendJson(res, statusCode, body) {
@@ -108,10 +109,30 @@ const server = createServer((req, res) => {
                 });
                 return;
             }
-            sendJson(res, 200, {
-                studentId,
-                items: [],
-            });
+            const from = url.searchParams.get("from");
+            const to = url.searchParams.get("to");
+            void (async () => {
+                try {
+                    const items = await listAbsenceEvents({
+                        studentId,
+                        from,
+                        to,
+                    });
+                    sendJson(res, 200, {
+                        studentId,
+                        items,
+                    });
+                }
+                catch (error) {
+                    const message = error instanceof Error ? error.message : "Unexpected database error.";
+                    sendJson(res, 500, {
+                        error: {
+                            code: "INTERNAL_ERROR",
+                            message,
+                        },
+                    });
+                }
+            })();
             return;
         }
     }
@@ -133,19 +154,27 @@ const server = createServer((req, res) => {
                         return;
                     }
                     const body = payload;
-                    const now = new Date().toISOString();
-                    sendJson(res, 201, {
-                        id: crypto.randomUUID(),
-                        studentId,
-                        from: body.from,
-                        to: body.to,
-                        reason: body.reason,
-                        note: body.note ?? null,
-                        reportedBy: body.reportedBy ?? null,
-                        idempotencyKey: body.idempotencyKey ?? null,
-                        createdAt: now,
-                        updatedAt: now,
-                    });
+                    try {
+                        const created = await createAbsenceEvent({
+                            studentId,
+                            from: body.from,
+                            to: body.to,
+                            reason: body.reason,
+                            note: body.note ?? null,
+                            reportedBy: body.reportedBy ?? null,
+                            idempotencyKey: body.idempotencyKey ?? null,
+                        });
+                        sendJson(res, 201, created);
+                    }
+                    catch (error) {
+                        const message = error instanceof Error ? error.message : "Unexpected database error.";
+                        sendJson(res, 500, {
+                            error: {
+                                code: "INTERNAL_ERROR",
+                                message,
+                            },
+                        });
+                    }
                 }
                 catch (error) {
                     const message = error instanceof Error ? error.message : "Invalid request.";

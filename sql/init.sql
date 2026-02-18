@@ -3,8 +3,8 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE absence_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id TEXT NOT NULL,
-  absent_from TIMESTAMPTZ NOT NULL,
-  absent_to TIMESTAMPTZ NOT NULL,
+  from_at TIMESTAMPTZ NOT NULL,
+  to_at TIMESTAMPTZ NOT NULL,
   reason TEXT NOT NULL,
   note TEXT,
   reported_by TEXT,
@@ -16,11 +16,11 @@ CREATE TABLE absence_events (
     CHECK (reason IN ('sick', 'vacation', 'other')),
 
   CONSTRAINT absence_events_time_range_check
-    CHECK (absent_to > absent_from)
+    CHECK (to_at > from_at)
 );
 
 CREATE INDEX absence_events_student_time_idx
-  ON absence_events (student_id, absent_from);
+  ON absence_events (student_id, from_at);
 
 CREATE UNIQUE INDEX absence_events_idempotency_unique_idx
   ON absence_events (student_id, idempotency_key)
