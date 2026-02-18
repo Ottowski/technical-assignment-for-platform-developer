@@ -1,7 +1,9 @@
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import { createAbsenceEvent, listAbsenceEvents } from "./db.js";
+import { createAppInfo, getAppConfig } from "./app.js";
 
-const port = Number(process.env.PORT ?? 3000);
+const { port } = getAppConfig();
+const appInfo = createAppInfo();
 const allowedReasons = new Set(["sick", "vacation", "other"]);
 
 type AbsenceCreateBody = {
@@ -250,5 +252,5 @@ const server = createServer((req, res) => {
 });
 
 server.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
+  console.log(`${appInfo.name} listening on port ${appInfo.port}`);
 });
