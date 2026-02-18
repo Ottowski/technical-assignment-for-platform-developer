@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx src/server.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "smoke:test": "pwsh -File scripts/smoke-test.ps1"
   },
   "dependencies": {
     "pg": "^8.18.0"
