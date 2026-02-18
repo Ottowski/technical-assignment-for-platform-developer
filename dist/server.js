@@ -56,6 +56,29 @@ function validateCreateBody(payload) {
     }
     return issues;
 }
+function validateListQuery(url) {
+    const issues = [];
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
+    if (!from) {
+        issues.push({ field: "from", message: "from query parameter is required." });
+    }
+    else if (!isIsoDatetime(from)) {
+        issues.push({ field: "from", message: "from must be an ISO-8601 datetime (UTC, e.g. 2026-02-02T08:30:00.000Z)." });
+    }
+    if (!to) {
+        issues.push({ field: "to", message: "to query parameter is required." });
+    }
+    else if (!isIsoDatetime(to)) {
+        issues.push({ field: "to", message: "to must be an ISO-8601 datetime (UTC, e.g. 2026-02-02T12:00:00.000Z)." });
+    }
+    if (from && to && isIsoDatetime(from) && isIsoDatetime(to)) {
+        if (new Date(to).getTime() <= new Date(from).getTime()) {
+            issues.push({ field: "to", message: "to must be after from." });
+        }
+    }
+    return issues;
+}
 function getStudentId(urlPathname) {
     const match = urlPathname.match(/^\/v1\/students\/([^/]+)\/absence-events$/);
     if (!match) {
@@ -70,6 +93,27 @@ const server = createServer((req, res) => {
     if (method === "GET" && url.pathname === "/health") {
         sendJson(res, 200, { status: "ok" });
         return;
+    }
+    if (method === "GET") {
+        const studentId = getStudentId(url.pathname);
+        if (studentId) {
+            const issues = validateListQuery(url);
+            if (issues.length > 0) {
+                sendJson(res, 400, {
+                    error: {
+                        code: "VALIDATION_ERROR",
+                        message: "Request validation failed.",
+                        details: issues,
+                    },
+                });
+                return;
+            }
+            sendJson(res, 200, {
+                studentId,
+                items: [],
+            });
+            return;
+        }
     }
     if (method === "POST") {
         const studentId = getStudentId(url.pathname);
