@@ -89,7 +89,6 @@ Idempotency behavior: repeating the same create request with the same `idempoten
 - `npm run dev` – run service in dev mode
 - `npm run build` – compile TypeScript
 - `npm run start` – run compiled app
-- `npm run smoke:test` – PowerShell smoke test for health/create/list
 
 ## Assumptions / shortcuts
 
@@ -106,10 +105,9 @@ Idempotency behavior: repeating the same create request with the same `idempoten
 ## Before submit
 
 - `npm run build`
-- `npm run smoke:test`
 - `docker compose up --build`
 - Verify `GET /health` responds with `{"status":"ok"}`
 
 ## AI usage note
 
-AI was used only for limited support tasks: quick syntax checks, boilerplate snippets, and cleanup in documentation. Core implementation, architecture decisions, API/data-model choices, debugging, and final verification were done manually.
+AI was used only for limited support tasks: quick syntax checks, boilerplate snippets, cleanup in documentation. Core implementation, architecture decisions, API/data-model choices, debugging, and final verification were done manually.
